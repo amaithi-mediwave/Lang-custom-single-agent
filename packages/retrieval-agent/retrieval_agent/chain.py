@@ -17,6 +17,8 @@ from langchain_community.chat_models import ChatOllama
 from langchain_community.llms import Ollama
 from langchain.chains import LLMChain
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 
 import weaviate
@@ -68,12 +70,13 @@ search = TavilySearchResults(max_results=1,
 
 # ------------------------- Message History ---------------------
 
-message_history = RedisChatMessageHistory(
-    url=REDIS_URL, session_id= itemgetter('session_id'), ttl=REDIS_TTL
-)
+# message_history = RedisChatMessageHistory(
+#     url=REDIS_URL, session_id= itemgetter('session_id'), ttl=REDIS_TTL
+# )
 
 memory = ConversationBufferMemory(
-    memory_key="chat_history", chat_memory=message_history,
+    memory_key="chat_history", 
+    # chat_memory=message_history,
     return_messages=True,
     output_key="output"
 )
@@ -227,7 +230,9 @@ class CustomOutputParser(AgentOutputParser):
         match = re.search(regex, llm_output, re.DOTALL)
         if not match:
             raise ValueError(f"Could not parse LLM output: `{llm_output}`")
+        
         action = match.group(1).strip()
+        action = action.replace('\\', '') if '\\' in action else action
         action_input = match.group(2)
         # Return the action and action input
         return AgentAction(
@@ -268,14 +273,18 @@ agent = LLMSingleActionAgent(
 
 class AgentInput(BaseModel):
     input: str
-    session_id : str
+    # session_id : str
     
 
-agent_executor = AgentExecutor.from_agent_and_tools(
-    agent=agent, tools=tools, verbose=True, handle_parsing_errors=True,
+agent = AgentExecutor.from_agent_and_tools(
+    agent=agent, 
+    tools=tools, 
+    # verbose=True, 
+    handle_parsing_errors=True,
     memory=memory, 
     return_only_outputs=True
 
-).with_types(
-    input_type=AgentInput
 )
+
+agent_executor = agent.with_types(
+    input_type=AgentInput) | itemgetter('output')
